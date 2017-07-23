@@ -1,0 +1,18 @@
+@font-face {
+	font-family: 'ShareTechMono';
+	src: url("/fonts/ShareTechMono.ttf");
+}
+
+@font-face {
+	font-family: 'digital_counter_7';
+	src: url("/fonts/digital_counter_7.ttf");
+}
+
+@font-face {
+	font-family: 'SpecialElite';
+	src: url("/fonts/specialelite.eot?#iefix") format("eot");
+	src: url("/fonts/specialelite.ttf") format("truetype"),
+	     url("/fonts/specialelite-webfont.woff2") format("woff2"),
+	     url("/fonts/specialelite-webfont.woff") format("woff");
+
+}

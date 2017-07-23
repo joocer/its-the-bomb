@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<title>Keep Talking and Nobody Gets Hacked</title>
+
+		<link rel="stylesheet" href="/css/fonts.css">
+		<link rel="stylesheet" href="/css/bootstrap.min.css">
+		<link rel="stylesheet" href="/css/style.css" >
+
+		<script src="/scripts/angular.min.js"></script>
+
+		<script type="text/javascript">
+
+function dateAdd(date, interval, units) {
+  var ret = new Date(date); //don't change original date
+  var checkRollover = function() { if(ret.getDate() != date.getDate()) ret.setDate(0);};
+  switch(interval.toLowerCase()) {
+    case 'year'   :  ret.setFullYear(ret.getFullYear() + units); checkRollover();  break;
+    case 'quarter':  ret.setMonth(ret.getMonth() + 3*units); checkRollover();  break;
+    case 'month'  :  ret.setMonth(ret.getMonth() + units); checkRollover();  break;
+    case 'week'   :  ret.setDate(ret.getDate() + 7*units);  break;
+    case 'day'    :  ret.setDate(ret.getDate() + units);  break;
+    case 'hour'   :  ret.setTime(ret.getTime() + units*3600000);  break;
+    case 'minute' :  ret.setTime(ret.getTime() + units*60000);  break;
+    case 'second' :  ret.setTime(ret.getTime() + units*1000);  break;
+    default       :  ret = undefined;  break;
+  }
+  return ret;
+}
+
+			function httpGetAsync(theUrl, callback) {
+				var xmlHttp = new XMLHttpRequest();
+				xmlHttp.onreadystatechange = function() { 
+					if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
+						callback(xmlHttp);
+					}
+				}
+				xmlHttp.open("GET", theUrl, true); // true for asynchronous
+				xmlHttp.send(null);
+			}
+
+			function updatePage($scope){
+				var hostURL = '/api/host?ticking=' + bombTicking + '&exploded=' + bombExploded;
+				httpGetAsync(hostURL, function(res){
+
+					var response = JSON.parse(res.response);
+					$scope.GamePlayerCount = response.players.length;
+					$scope.GameCode = response.gamecode;
+					$scope.Players = response.players;
+				});
+				if (bombTicking) {
+					var d = new Date();
+					result = bombStart - d;
+    					$scope.BombTimer = result;
+
+					if (result <= 0) {
+						bombExploded = true;
+					}
+				}
+				if (bombExploded && ($scope.BombTimer != "--:--")) {
+					$scope.BombTimer = "--:--"
+				}
+				else if (bombExploded) {
+					$scope.BombTimer = "00:00"
+				}
+			}
+
+			var bombTicking = false;
+			var bombExploded = false;
+			var bombStart;
+		
+			var app = angular.module('HostApp', [])
+			app.controller('Host', function ($scope, $interval) {	
+				$scope.GameCode = '------';
+				$scope.BombTimer = '03:00';
+				$scope.GamePlayerCount = 0;
+				$interval(function () { updatePage($scope); }, 1000); 
+			});
+
+		</script>
+
+	</head>
+	<body ng-app="HostApp" ng-controller="Host">
+		<div class="row">
+			<div class="centerBlock" id="host-gamecode">game code: <span>{{ GameCode }}</span></div>
+		</div>
+		<div class="row">
+			<div class="col-xs-9">
+				<div id='gametimer' class="centerBlock">
+					<div class="timer timerback">88:88</div>
+					<div class="timer">{{ BombTimer | date:'mm:ss'}}</div>
+				</div>
+			</div>
+			<div class="col-xs-3">
+				<span onclick='if (!bombTicking) { bombTicking = true; bombStart = dateAdd(new Date(), "minute", 3); document.getElementById("audiocontrol").play(); }'>
+					<img id='red-button' src='/images/red-button.png' alt='arm'/>
+				</span>
+			</div>
+		</div>
+
+		<div class="centerBlock" id="gameplayercount">defusers: {{ GamePlayerCount }}</span></div>
+
+		<div class="row">
+			<div class="col-xs-1"></div>
+			<div class="col-xs-10">
+				<span ng-repeat="Player in Players"><span class="roll">*{{ Player }}</span> </span>
+			</div>
+			<div class="col-xs-1"></div>		
+		</div>
+
+		<audio id="audiocontrol">
+  			<source src="/sounds/timer.ogg" type="audio/ogg">
+		</audio>
+	</body>
+</html>

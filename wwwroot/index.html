@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<title>Keep Talking and Nobody Gets Hacked</title>
+
+		<link rel="stylesheet" href="/css/bootstrap.min.css">
+		<link rel="stylesheet" href="/css/fonts.css">
+		<link rel="stylesheet" href="/css/style.css" >
+
+		<script src="/scripts/angular.min.js"></script>
+
+		<script language="javascript"> 
+			
+			function toggle(element) {
+				var ele = document.getElementById(element);
+				if(ele.style.display == "block") {
+    					ele.style.display = "none";
+				}
+				else {
+					ele.style.display = "block";
+				}
+			}
+
+			function httpPostAsync(theUrl, payload, contentType, callback) {
+				var async = true;
+				var xmlHttp = new XMLHttpRequest();
+				xmlHttp.onreadystatechange = function() { 
+					if (xmlHttp.readyState == 4) {
+						callback(xmlHttp);
+					}
+				}
+				xmlHttp.open("POST", theUrl, async); 
+				xmlHttp.setRequestHeader("Content-Type", contentType);
+				xmlHttp.send(payload);
+			}
+
+			function httpGetAsync(theUrl, callback) {
+				var xmlHttp = new XMLHttpRequest();
+				xmlHttp.onreadystatechange = function() { 
+					if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
+						callback(xmlHttp);
+					}
+				}
+				xmlHttp.open("GET", theUrl, true); // true for asynchronous
+				xmlHttp.send(null);
+			}
+
+			function ValidateRegistration() {
+				document.getElementById("gamecode-label").style.color = "#ffffff";
+				document.getElementById("player-label").style.color = "#ffffff";
+				var requestObject = {};
+				requestObject.gamecode = document.getElementById("gamecode").value;
+				requestObject.player = document.getElementById("player").value;
+				httpPostAsync('/api/player/register', JSON.stringify(requestObject), 'application/json;charset=UTF-8', function(response) {
+					var rJSON = JSON.parse(response.response);
+					switch(response.status) {
+						case 200: 
+							toggle('panel-register');
+							toggle('panel-wait');
+							waiting = true;
+        						break;
+        					default:
+							switch(rJSON.error) {
+								case "game code":
+									document.getElementById("gamecode-label").style.color = "#ff8888";
+									break;
+								case "name collision":
+								case "name missing":
+									document.getElementById("player-label").style.color = "#ff8888";
+									break;
+							}
+							break;
+ 					}
+				});
+			}
+
+			function updatePage($scope){
+				var hostURL = '/api/player/poll';
+				httpGetAsync(hostURL, function(res){
+					var response = JSON.parse(res.response);
+					var ticking = response.ticking;
+					var exploded = response.exploded;
+					if (waiting && ticking && !exploded) {
+						toggle('panel-wait');
+						toggle('panel-play');
+						waiting = false;
+						playing = true;
+					}
+					if (playing && exploded) {
+						toggle('panel-play');
+						if ($scope.ModuleOWASPArmed || $scope.ModuleAssArmed) {
+							toggle('panel-dead');
+							playing = false;
+						}
+						else {
+							toggle('panel-survive');
+							playing = false;
+						}
+					}
+				});
+			}
+
+			var app = angular.module('PlayerApp', [])
+			app.controller('Player', function ($scope, $interval) {
+
+				$interval(function () { updatePage($scope); }, 1000); 
+
+//------------------------------------------------------------------------------//
+//	Bomb Module - OWASP							//
+//------------------------------------------------------------------------------//
+
+				var vulnerabilityTypes = ['SQL Injection', 'Cross Site Request Forgery', 'Direct Object Reference', 'Cross Site Scripting'];
+
+				$scope.ModuleOWASPAnswer = [false, false, false, false, false];
+				$scope.ModuleOWASPIndicator = [false, false, false, false];
+				$scope.OWASPPosition = 0;
+				$scope.ModuleOWASPArmed = true;
+
+				$scope.ModOWASPQuestion = function() {
+					return vulnerabilityTypes[$scope.OWASPPosition];
+				}
+
+				$scope.ModOWASPSubmit = function() {
+					if (!$scope.ModuleOWASPArmed) { return; }
+
+					switch($scope.OWASPPosition) {
+						case 0:
+							if ($scope.ModuleOWASPAnswer.join(',') === [false, false, false, true, false].join(',')) {
+								$scope.ModuleOWASPIndicator[$scope.OWASPPosition] = true;
+								$scope.OWASPPosition = $scope.OWASPPosition + 1;
+							}
+							break;
+						case 1:
+							if ($scope.ModuleOWASPAnswer.join(',') === [false, false, false, false, true].join(',')) {
+								$scope.ModuleOWASPIndicator[$scope.OWASPPosition] = true;
+								$scope.OWASPPosition = $scope.OWASPPosition + 1;
+							}
+							break;
+						case 2:
+							if ($scope.ModuleOWASPAnswer.join(',') === [false, false, true, false, false].join(',')) {
+								$scope.ModuleOWASPIndicator[$scope.OWASPPosition] = true;
+								$scope.OWASPPosition = $scope.OWASPPosition + 1;
+							}
+							break;
+						case 3:
+ 							if ($scope.ModuleOWASPAnswer.join(',') === [true, false, false, true, false].join(',')) {
+								$scope.ModuleOWASPIndicator[$scope.OWASPPosition] = true;
+								$scope.ModuleOWASPArmed = false;
+							}
+							break;
+					}
+
+					$scope.ModuleOWASPAnswer = [false, false, false, false, false];
+				}
+
+
+//------------------------------------------------------------------------------//
+//	Bomb Module - Assurance							//
+//------------------------------------------------------------------------------//
+
+				var possibleAssurances = [
+						'dast-a', 
+						'dast-m', 
+						'fuzz-a', 
+						'fuzz-m',
+						'manualcodereview',
+						'pentesting',
+						'sast-a',
+						'sast-m',
+						'threatmodelling'
+						];
+
+				$scope.ModuleAssArmed = true;
+				$scope.ModuleAssuranceAnswer = [Math.floor(Math.random() * 9), Math.floor(Math.random() * 9), Math.floor(Math.random() * 9), Math.floor(Math.random() * 9)];
+
+				$scope.ModAss = function(index, delta)
+				{
+					$scope.ModuleAssuranceAnswer[index] = (($scope.ModuleAssuranceAnswer[index] + delta) + 9) % 9;
+				}
+				$scope.ModAssImage = function(index) {
+					return possibleAssurances[index]
+				}
+				$scope.ModAssSubmit = function() {
+					if (!$scope.ModuleAssArmed) { return; }
+
+					if (($scope.ModuleAssuranceAnswer[0] == 8) && ($scope.ModuleAssuranceAnswer[1] == 6) && ($scope.ModuleAssuranceAnswer[2] == 0) && ($scope.ModuleAssuranceAnswer[3] == 5)) {
+						$scope.ModuleAssArmed = false;
+					}
+					else {
+						$scope.ModuleAssuranceAnswer = [Math.floor(Math.random() * 9), Math.floor(Math.random() * 9), Math.floor(Math.random() * 9), Math.floor(Math.random() * 9)];
+					}
+				}
+			});
+
+//------------------------------------------------------------------------------//
+
+			var waiting = false;
+			var playing = false;
+
+		</script>
+
+
+	</head>
+	<body ng-app="PlayerApp" ng-controller="Player">
+		<div id="panel-welcome" style="display: block">
+			<img src="/images/header_white.png" alt="Keep Talking and Nobody Gets Hacked" style="width:75%;" class="titleimage centerBlock">
+			<p class="largemessage">Solve AppSec problems quickly or get blown to pieces</p>
+			<ul>
+				<li>Split into teams</li>
+				<li>Each team has a single defuser, everybody else are experts</li>
+				<li>Only defusers can see the bomb, only experts can see the manual</li>
+				<li>Experts and defusers talk to each other to defuse the bomb before it goes off</li>
+				<li>AppSec Specialists cannot be experts</li>
+			</ul>
+			<div class="continuebutton" onclick="toggle('panel-welcome');toggle('panel-register');"> continue </div>
+		</div>
+
+		<div id="panel-register" style="display: none">
+			<img src="/images/header_white.png" alt="Keep Talking and Nobody Gets Hacked" style="width:75%;" class="titleimage centerBlock">
+			<form class="form-horizontal" id="registration-form">
+				<p>&nbsp;</p>	
+				<div class="form-group">
+					<label for="gamecode" class="col-sm-4 control-label" id="gamecode-label">game code</label>
+					<div class="col-sm-8"><input type="text" id="gamecode" name="gamecode" /></div>
+				</div>
+				<div class="form-group">
+					<label for="playername" class="col-sm-4 control-label" id="player-label">defuser</label>
+					<div class="col-sm-8"><input type="text" id="player" name="player" /></div>
+				</div>
+				<div class="form-group">
+					<label for="nextofkin" class="col-sm-4 control-label">next of kin</label>
+					<div class="col-sm-8"><input type="text" name="nextofkin" /></div>
+				</div>
+				<div class="pull-right">
+					<div class="continuebutton" onclick="ValidateRegistration();"> continue </div>
+				</div>
+			</form>
+		</div>
+
+		<div id="panel-wait" style="display: none">
+			<div class="centerBlock" style="margin-top: 100px;">
+				<p class="largemessage">This screen is for Defusers eyes only.</p>
+				<p class="largemessage">You are not allowed to look at the Bomb Defusal Manual.</p>
+				<br />
+				<p>We're prepping your bomb.</p>
+				<p>I hope you're ready for this.</p>
+			</div>
+		</div>
+
+		<div id="panel-play" style="display: none" class="container">
+			<div class="module">
+				<div class="row">
+					<span class="pull-right toggle"><img src="/icons/{{ ModuleOWASPArmed?'complete':'incomplete' }}.png" width="25px"/>&nbsp;&nbsp;&nbsp;</span>
+					<span class="centerBlock"><div class="OWASPQ">{{ ModOWASPQuestion() }}</div></span>
+				</div>
+				<div class="row">
+					<div class="centerBlock toggleboard">
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPAnswer[0]?'on':'off' }}.png" width="60px" ng-click="ModuleOWASPAnswer[0] = !ModuleOWASPAnswer[0]"/></span>
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPAnswer[1]?'on':'off' }}.png" width="60px" ng-click="ModuleOWASPAnswer[1] = !ModuleOWASPAnswer[1]"/></span>
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPAnswer[2]?'on':'off' }}.png" width="60px" ng-click="ModuleOWASPAnswer[2] = !ModuleOWASPAnswer[2]"/></span>
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPAnswer[3]?'on':'off' }}.png" width="60px" ng-click="ModuleOWASPAnswer[3] = !ModuleOWASPAnswer[3]"/></span>
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPAnswer[4]?'on':'off' }}.png" width="60px" ng-click="ModuleOWASPAnswer[4] = !ModuleOWASPAnswer[4]"/></span>
+					</div>
+				</div>
+				<div class="row">
+					<div class="centerBlock toggleboard">
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPIndicator[0]?'complete':'incomplete' }}.png" width="25px"/></span>
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPIndicator[1]?'complete':'incomplete' }}.png" width="25px"/></span>
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPIndicator[2]?'complete':'incomplete' }}.png" width="25px"/></span>
+						<span class="toggle"><img src="/icons/{{ ModuleOWASPIndicator[3]?'complete':'incomplete' }}.png" width="25px"/></span>
+						<span>&nbsp;&nbsp;&nbsp;<img src="/icons/submit.png" width="125px" ng-click="ModOWASPSubmit()"/></span>
+					</div>
+				</div>
+			</div>
+
+			<div class="module">
+				<div class="row">
+					<span class="pull-right toggle"><img src="/icons/{{ ModuleAssArmed?'complete':'incomplete' }}.png" width="25px"/>&nbsp;&nbsp;&nbsp;</span>
+					<div class="col-xs-2"></div>
+					<div class="col-xs-2 toggleboard">
+						<div class="centerBlock"><img src="/icons/up-arrow.png" alt="up" width="35px" ng-click="ModAss(0, 1)"/></div>
+						<div class="centerBlock"><img class="ModAssImg" src="/icons/{{ ModAssImage(ModuleAssuranceAnswer[0]) }}.png" width="70px"/></div>
+						<div class="centerBlock"><img src="/icons/down-arrow.png" alt="down" width="35px" ng-click="ModAss(0, -1)"/></div>
+					</div>
+					<div class="col-xs-2 toggleboard">
+						<div class="centerBlock"><img src="/icons/up-arrow.png" alt="up" width="35px" ng-click="ModAss(1, 1)"/></div>
+						<div class="centerBlock"><img class="ModAssImg" src="/icons/{{ ModAssImage(ModuleAssuranceAnswer[1]) }}.png" width="70px"/></div>
+						<div class="centerBlock"><img src="/icons/down-arrow.png" alt="down" width="35px" ng-click="ModAss(1, -1)"/></div>
+					</div>
+					<div class="col-xs-2 toggleboard">
+						<div class="centerBlock"><img src="/icons/up-arrow.png" alt="up" width="35px" ng-click="ModAss(2, 1)"/></div>
+						<div class="centerBlock"><img class="ModAssImg" src="/icons/{{ ModAssImage(ModuleAssuranceAnswer[2]) }}.png" width="70px"/></div>
+						<div class="centerBlock"><img src="/icons/down-arrow.png" alt="down" width="35px" ng-click="ModAss(2, -1)"/></div>
+					</div>
+					<div class="col-xs-2 toggleboard">
+						<div class="centerBlock"><img src="/icons/up-arrow.png" alt="up" width="35px" ng-click="ModAss(3, 1)"/></div>
+						<div class="centerBlock"><img class="ModAssImg" src="/icons/{{ ModAssImage(ModuleAssuranceAnswer[3]) }}.png" width="70px"/></div>
+						<div class="centerBlock"><img src="/icons/down-arrow.png" alt="down" width="35px" ng-click="ModAss(3, -1)"/></div>
+					</div>
+					<div class="col-xs-2"></div>
+				</div>
+				<div class="row">
+					<span class="centerBlock toggleboard"><img src="/icons/submit.png" width="125px" ng-click="ModAssSubmit()"/></span>
+				</div>
+			</div>
+			<div class="row">
+				<span id="model">Model: FN-2199/TR-8R</span>
+			</div>		
+		</div>
+
+		<div id="panel-dead" style="display: none">
+			<div class="centerBlock" style="margin-top: 100px;">
+				<p class="largemessage"><div class="centreBlock">YOU'VE BEEN BLOWN TO SMITHEREENS</div></p>
+			</div>
+		</div>
+
+		<div id="panel-survive" style="display: none">
+			<div class="centerBlock" style="margin-top: 100px;">
+				<p class="largemessage">BOMB DEFUSED</p>
+			</div>
+		</div>
+
+		<div id="panel-cache" style="display: none">
+			<img class="ModAssImg" src="/icons/dast-a.png" />
+			<img class="ModAssImg" src="/icons/dast-m.png" />
+			<img class="ModAssImg" src="/icons/fuzz-a.png" />
+			<img class="ModAssImg" src="/icons/fuzz-m.png" />
+			<img class="ModAssImg" src="/icons/manualcodereview.png" />
+			<img class="ModAssImg" src="/icons/off.png" />
+			<img class="ModAssImg" src="/icons/on.png" />
+			<img class="ModAssImg" src="/icons/pentesting.png" />
+			<img class="ModAssImg" src="/icons/sast-a.png" />
+			<img class="ModAssImg" src="/icons/sast-m.png" />
+			<img class="ModAssImg" src="/icons/threatmodelling.png" />
+		</div>
+
+	</body>
+</html>
